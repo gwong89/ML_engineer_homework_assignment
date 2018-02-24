@@ -1,0 +1,7 @@
+# All python dependencies would live here, and when a user comes in and downloads the repo, installation will be much faster
+# For the sake of this take home I will not populate this file, but just to show standard practices on what to do
+
+# examples
+
+# numpy == 1.14
+# pandas == 0.22.0
