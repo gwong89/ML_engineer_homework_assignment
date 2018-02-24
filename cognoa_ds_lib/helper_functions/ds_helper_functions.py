@@ -1,257 +1,17 @@
 import itertools
-import matplotlib
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plot
-from sklearn import preprocessing
-from sklearn import tree
-from sklearn.ensemble import ExtraTreesClassifier
-from sklearn.naive_bayes import BernoulliNB
 from sklearn import metrics
 from sklearn import cross_validation
 from sklearn import feature_extraction
 import math
-import random
 import marshal, pickle, types
 import copy as cp
 import scipy.stats as stats
 import matplotlib.pyplot as plt
 from sklearn import linear_model
-from sklearn_0p18_bridge_code import *
-
-
-
-
-
-
-
-#converts a value to a float gracefully
-def convert_to_float(x):
-    try:
-        return float(x)
-    except:
-        return np.NaN
-
-
-#handy function to plot some histograms of DataFrame columns
-def plot_histogram(df, column_name, sort=False):
-    
-    histo = df[column_name].value_counts()
-    if(sort):
-        histo = histo.sort_index()
-    X = np.array(histo.keys())
-    Y = histo.values
-    plot.bar(np.arange(len(X)), Y, align='center')
-    plot.xticks(np.arange(len(X)), X)
-    plot.title("Histogram of "+column_name+" values")
-    plot.xlabel(column_name)
-    plot.ylabel('Frequency')
-    fig = matplotlib.pyplot.gcf()
-    fig.set_size_inches(18.5, 10.5, forward=True)
-    plot.show()
-    
-
-#plot correlation of categorical feature with outcome variable
-def plot_feature_correlation(df, feature_column_name, sort=False):
-    c = 1.0  - df.groupby(feature_column_name)['outcome'].mean()
-    if (sort):
-        c = c.sort_index()
-    X = np.array(c.keys())
-    Y = c.values
-    plot.bar(np.arange(len(X)), Y, align='center')
-    plot.xticks(np.arange(len(X)), X)
-    plot.title("Correlation of outcome variable with "+feature_column_name+" categories")
-    plot.xlabel(feature_column_name)
-    plot.ylabel('Percent non spectrum')
-    fig = matplotlib.pyplot.gcf()
-    fig.set_size_inches(18.5, 10.5, forward=True)
-    plot.show()
-
-
-def plot_classifier_profiles(bunch_of_classifier_data, plot_title, default_coverage_to_plot = 0.75, specificity_bin_width = 0.025, ylim=(0., 1.), legend_font_size=16, shaded_sensitivity_zones=True):
-    import matplotlib.pyplot as plt
-    from matplotlib.colors import LinearSegmentedColormap 
-    
-    fig = plt.figure(figsize=(20, 6))
-
-    #setup axes        
-    plt.xlabel('specificity', fontsize=28)
-    plt.xticks(np.arange(0.0, 1.1, 0.05), fontsize=16)
-    plt.xlim(0.0, 1.0)
-    plt.ylabel('sensitivity', fontsize=28)
-    plt.yticks(np.arange(0.0, 1.1, 0.05), fontsize=16)
-    plt.ylim(ylim)
-    
-    #add shaded sensitivity zones if required
-    if (shaded_sensitivity_zones):
-    	plt.axhspan(0.7, 0.8, edgecolor='none', facecolor='lightyellow', alpha=1.0, zorder=1)
-    	plt.axhspan(0.8, 0.9, edgecolor='none', facecolor='orange', alpha=0.3, zorder=1)
-
-    #plot data 
-    for (classifier_info, sensitivity_specificity_dataframe) in bunch_of_classifier_data:
-        print 'Plot for classifier info: ', classifier_info
-    
-    	#if we're being asked to plot the optimal point only (as opposed to an ROC curve)
-    	if ('type' in classifier_info and classifier_info['type'] == 'optimal_point'):
-        
-        	label = classifier_info['label'] if 'label' in classifier_info else 'unnamed classifier' 
-        	if sensitivity_specificity_dataframe['coverage']<1.0:
-        		label = label + ' @ '+"{0:.0f}%".format(100*sensitivity_specificity_dataframe['coverage'])+' coverage'
-        	size = classifier_info['size'] if 'size' in classifier_info else 400
-        	linestyle = classifier_info['linestyle'] if 'linestyle' in classifier_info else '-'
-        	alpha = classifier_info['alpha'] if 'alpha' in classifier_info else 0.75
-        	fill =  classifier_info['fill'] if 'fill' in classifier_info else True
-        	edgecolors = classifier_info['color'] if 'color' in classifier_info else None
-        	if (fill):
-        		facecolors = classifier_info['color'] if 'color' in classifier_info else None
-        	else:
-        		facecolors = 'none'
-	
-        	
-        	
-         	
-        	label = label + " [ {0:.0f}%".format(100*sensitivity_specificity_dataframe['sensitivity'])+' sens, '
-        	label = label + "{0:.0f}%".format(100*sensitivity_specificity_dataframe['specificity'])+' spec]'
-       
-
-        	plt.scatter([sensitivity_specificity_dataframe['specificity']],[sensitivity_specificity_dataframe['sensitivity']], s=size, alpha=alpha, facecolors=facecolors, edgecolors=edgecolors, label=label, zorder=10)
-    	
-    	#we default to plotting curves
-    	else:
-    	
-            min_acceptable_coverage = classifier_info['coverage'] if 'coverage' in classifier_info else default_coverage_to_plot
-            specificity_sensitivity_values = [(spec, sen) for spec, sen in zip(sensitivity_specificity_dataframe['specificity'].values, sensitivity_specificity_dataframe['sensitivity'].values)]
-            plot_color = classifier_info['color'] if 'color' in classifier_info else None
-            label = classifier_info['label'] if 'label' in classifier_info else 'unnamed classifier' 
-            linewidth = classifier_info['linewidth'] if 'linewidth' in classifier_info else 3
-            linestyle = classifier_info['linestyle'] if 'linestyle' in classifier_info else '-'
-	
-	
-            if 'coverage' not in sensitivity_specificity_dataframe:
-                plt.plot(sensitivity_specificity_dataframe['specificity'], sensitivity_specificity_dataframe['sensitivity'], marker=None, linewidth=linewidth, label=label, color = plot_color, linestyle=linestyle)
-	 
-            else:
-	                                   
-                sensitivity_specificity_dataframe['rounded_specificity'] = sensitivity_specificity_dataframe['specificity'].apply(lambda x: 0 if np.isnan(x) else specificity_bin_width*(int(x/specificity_bin_width)) )
-				
-                acceptable_coverage_sensitivity_specificity_dataframe = sensitivity_specificity_dataframe[sensitivity_specificity_dataframe.coverage>=min_acceptable_coverage]
-                min_sensitivity = acceptable_coverage_sensitivity_specificity_dataframe.groupby('rounded_specificity')['sensitivity'].min()
-                max_sensitivity = acceptable_coverage_sensitivity_specificity_dataframe.groupby('rounded_specificity')['sensitivity'].max()
-
-                specificity = acceptable_coverage_sensitivity_specificity_dataframe.groupby('rounded_specificity')['rounded_specificity'].max()
-	
-                plt.plot(specificity, max_sensitivity, linewidth=linewidth, label=label+' @ '+"{0:.0f}%".format(100*min_acceptable_coverage)+'+ coverage', color = plot_color, linestyle=linestyle)
-	            
-
-    #add legend
-    plt.legend(loc="lower left", prop={'size':legend_font_size})
-    
-    #add title
-    plt.title(plot_title, fontsize=20, fontweight='bold')
-    
-    #let's do it!
-    plt.show()
-    return plt,fig
-
-#same as above but plots a simple bar chart instead of complicated ROC curves
-def barplot_classifier_profiles(bunch_of_classifier_data, plot_title, sensitivity_low=0.75, sensitivity_high=0.85, min_coverage=0.7):
-
-    barplot_data = []
-    
-    for (classifier_info, sensitivity_specificity_dataframe) in bunch_of_classifier_data:
-        label = classifier_info['label'] if 'label' in classifier_info else 'unnamed classifier' 
-    
-        if 'coverage' in sensitivity_specificity_dataframe.columns:
-            sensitivity_specificity_dataframe = sensitivity_specificity_dataframe[(sensitivity_specificity_dataframe['coverage']>=min_coverage) ]
-        
-            sensitivity = sensitivity_specificity_dataframe.groupby('rounded_specificity')['sensitivity'].max()
-            specificity = sensitivity_specificity_dataframe.groupby('rounded_specificity')['rounded_specificity'].max()
-        else:
-            sensitivity = sensitivity_specificity_dataframe.groupby('specificity')['sensitivity'].max()
-            specificity = sensitivity_specificity_dataframe.groupby('specificity')['specificity'].max()
-
-        temp = pd.DataFrame(zip(specificity,sensitivity), columns=['specificity', 'sensitivity'])
-        temp2 = temp[(temp['sensitivity']>=sensitivity_low) & (temp['sensitivity']<=sensitivity_high)]
-        bar_height =  temp2['specificity'].mean()
-
-        barplot_data += [ (classifier_info['label'],bar_height) ]
-
-    fig = plt.figure(figsize=(20, 10))
-
-    barlist = plt.barh( range(len(barplot_data)), [x[1] for x in barplot_data] , align='center', edgecolor = "black", alpha=0.8 )
-    plt.yticks(range(len(barplot_data)), [x[0] for x in barplot_data])
-
-    #setup value labels
-    for i, v in enumerate( [x[1] for x in barplot_data] ):
-        plt.text(v - 0.05,  i-0.1, "{0:.0f}%".format(100*v), color='black', fontsize=24)
-    
-    #setup name labels
-    for i,v in enumerate ( [x[0]['label'] for x in bunch_of_classifier_data] ):
-        plt.text(0.02,  i-0.1, v, color='black', fontsize=18)
-   
-    #setup colors
-    for i in range(0, len(barlist)):
-        classifier_info = bunch_of_classifier_data[i][0]
-        color = classifier_info['color'] if 'color' in classifier_info else None
-        barlist[i].set(facecolor=color)
-
-    #setup axes        
-    plt.ylabel('algorithm', fontsize=28)
-    plt.yticks([])
- 
-    plt.xlabel('specificity', fontsize=28)
-    plt.xticks(np.arange(0.0, 1.1, 0.05), fontsize=16)
-    plt.xlim(0.0, 1.0)
-
-    #add title
-    plt.title(plot_title, fontsize=20, fontweight='bold')
-
-    #let's do it!    
-    print 'show figure with title ', plot_title
-    plt.show()
-    return plt,fig
-
-
-
-#handy function that operates on a DF column and maps the data range to [0-1]
-def normalize_range(column):
-
-    min_val = min(column.values)
-    max_val = max(column.values)
-    output = (column.values - min_val) / (max_val - min_val)
-    return output
-
-    
-#handy function to return list of DataFrame columns that have a keyword (like ADIR or ADOS) somewhere in their title
-def columns_about(df, keyword):
-    return [x for x in list(df.columns) if keyword.lower() in x.lower()]
-    
-
-#handy function to replace certain values in certain columns of a dataframe. Useful for feature value mapping before training
-def replace_values_in_dataframe_columns(df, columns, values, replacement, replace_if_equal=True):
-
-    for column in columns:
-        
-        if (replace_if_equal):
-            mask = df[column].isin(values)
-        else:
-            mask = np.logical_not( df[column].isin(values) )
-            
-        df[column][mask] = replacement
-   
-#handy function to subsample dataframe by choosing x% of the samples of each 'class' as defined by a column in the df                
-def subsample_per_class(df, class_column_name, dict_ratio_per_class):
-    output_df = pd.DataFrame()
-    for class_name in dict_ratio_per_class.keys():
-        df_this_class = df[df[class_column_name]==class_name]
-        ratio = dict_ratio_per_class[class_name]
-        total = len(df_this_class)
-        sample_size = int(float(total) * ratio)
-        subset = df_this_class.loc[np.random.choice(df_this_class.index, sample_size, replace=False)]
-        subset = subset.reset_index()
-        output_df = pd.concat([output_df, subset])
-    return output_df.reset_index(drop=True)
-
+from ML_engineer_homework_assignment.cognoa_ds_lib.sklearn_0p18_bridge_code import confusion_matrix_0p18
+import constants
 
 def balance_dataset_on_dimensions(dataset, dimensions, enforce_group_weight_instructions=None, verbose=False):
 
@@ -292,10 +52,8 @@ def balance_dataset_on_dimensions(dataset, dimensions, enforce_group_weight_inst
     '''
 
     if 'sample_weights' in dataset.columns:
-        #print 'Warning, sample weights is already defined in dataframe before calling balance_dataset_on_dimensions. Overwriting old weights.'
         dataset = dataset.drop('sample_weights', 1)
     if 'pre_scaled_sample_weights' in dataset.columns:
-        #print 'Warning, sample weights is already defined in dataframe before calling balance_dataset_on_dimensions. Overwriting old weights.'
         dataset = dataset.drop('pre_scaled_sample_weights', 1)
     counts = {}
     weights = {}
@@ -370,43 +128,6 @@ def balance_dataset_on_dimensions(dataset, dimensions, enforce_group_weight_inst
         dataset = dataset.drop('pre_scaled_sample_weights', 1)
 
     return weights_to_return
-
-
-def get_presence_of_behavior_rules_dict():
-    presence_rules_dict = {
-        'ados1_a1': ['0', '1', '2', '3'],
-        'ados1_a3': ['1', '2'],
-        'ados1_a7': ['0', '1'],
-        'ados1_a8': ['0', '1'],
-        'ados1_b9': ['0', '1'],
-        'ados1_b10': ['0', '1'],
-        'ados1_b12': ['0', '1'],
-        'ados1_d1': ['1', '2'],
-        'ados1_d2': ['1', '2'],
-        'ados1_d4': ['1', '2', '3'],
-        'ados2_a3': ['1', '2'],
-        'ados2_a5': ['2', '3'],
-        'ados2_b1': ['2'],
-        'ados2_b2': ['0', '1'],
-        'ados2_b6': ['0', '1'],
-        'ados2_d1': ['1', '2'],
-        'ados2_d2': ['1', '2'],
-        'ados2_d4': ['1', '2', '3'],
-        'ados2_e3': ['1', '2'],
-        'ados1_a2': ['0', '1'],
-        'ados1_b1': ['2'],
-        'ados1_b2': ['0', '1'] ,
-        'ados1_b5': ['0', '1'] ,
-        'ados1_c1': ['0', '1', '2'],
-        'ados1_c2': ['0', '1'],
-        'ados2_a8': ['0', '1'] ,
-        'ados2_b3': ['0', '1'] ,
-        'ados2_b8': ['0', '1'] ,
-        'ados2_b10': ['0', '1']
-    }
-    return presence_rules_dict
-
-
 
 #prepare a  dataset for modeling by preprocessing every feature into the appropriate encoding and splitting into two matrices
 #X=features and Y=target
@@ -492,7 +213,7 @@ def prepare_data_for_modeling(df, feature_columns, feature_encoding_map, target_
     #presence of behavior features is an experimental ADOS encoding scheme for now
     presence_of_behavior_encoded_features = [x for x in feature_columns if (x in feature_encoding_map and feature_encoding_map[x]=='presence_of_behavior')]
     presence_of_behavior_encoded_X = df[presence_of_behavior_encoded_features]
-    presence_of_behavior_rules_dict = get_presence_of_behavior_rules_dict()
+    presence_of_behavior_rules_dict = constants.PRESENCE_RULES_DICT
     for feature in presence_of_behavior_encoded_X.columns:
         if feature in presence_of_behavior_rules_dict.keys():
             presence_of_behavior_encoded_X[feature+"_behavior_present"] = presence_of_behavior_encoded_X[feature].apply(lambda x: 1 if x in presence_of_behavior_rules_dict[feature] else 0)
@@ -537,7 +258,6 @@ def training_data_statistical_stability_tests(dataset, sample_frac_sizes, featur
         if sample_frac < 0.08: use_n_duplicates = 2*n_duplicate_runs
         for i in range(use_n_duplicates):   ### run a number of times and average performances to iron out uncertainties
             try:
-                #print 'get AUC for sample_frac: ', sample_frac
                 frac_dataset = dataset.sample(frac=sample_frac)
                 frac_sample_weights = sample_weights.iloc[frac_dataset.index]
                 train_model, train_features, train_y_predicted_without_dunno, train_y_predicted_with_dunno, train_y_predicted_probs =\
@@ -1019,7 +739,6 @@ def get_stratified_labeled_KFolds(myDF, n_folds, target_column='diagnosis', grou
         avgByGroupDF = myDF.groupby(groupKey).agg(lambda x: stats.mode(x)[0][0])
         valsForFolding = avgByGroupDF[target_column].values
     cross_validation_folds = cross_validation.StratifiedKFold(n_folds=n_folds, y=valsForFolding, shuffle=True)
-    #print 'cross validation folds: ', cross_validation_folds
 
     trainingGroups, validateGroups = [], []
 
@@ -1313,12 +1032,6 @@ def load_model( filename):
 
     return model_structure
 
-#given a bunch of variables, each in a list of possible ranges, returns tuples for every possible combination of variable values
-#   for example, given [ ['a','b'], [1,2], ['x','y'] ]
-#   it returns [ ('a',1,'x'), ('a',1,'y'), ('a',2,'x'), ('a',2,'y'), ('b',1,'x') ... ]
-def get_combinations(list_of_lists):
-    return list(itertools.product(*list_of_lists))
-
 #performs a grid search over a modeling_function using different param_combinations each time, and collecting the outputs of a reporting_fuction in successive runs
 def grid_search(modeling_function, param_combinations, reporting_function, verbose=False):
     final_report = []
@@ -1334,61 +1047,6 @@ def grid_search(modeling_function, param_combinations, reporting_function, verbo
         report.extend( reporting_function(param_combination, metrics) )
         final_report.append(report)
     return final_report
-    
-        
-#H(Y) = -sigmaOveri(P(Y=yi)*log2(P(Y=yi)))
-def entropy(categoricalVariableAsList):
-    probabilityDistributionOfY = pd.Series(categoricalVariableAsList).value_counts(normalize=True)
-    entropy = -1.0*sum([p*math.log(p, 2) for p in probabilityDistributionOfY])
-    return entropy
-
-    #let's test it
-    #print entropy(['ab', 'b', 'c'])
-
-
-#H(Y|X) = sigmaOverj(P(X=xj)*H(Y|X=xj))
-def conditionalEntropy(YasList, XasList):
-    pairs = zip(XasList, YasList)   
-    probabilityDistributionOfX = pd.Series(XasList).value_counts(normalize=True)
-    conditionalEntropy = 0.0
-    for xj in np.unique(XasList):
-        conditionalEntropy += probabilityDistributionOfX[xj]*entropy([item for item in pairs if item[0]==xj])
-    return conditionalEntropy
-
-    #let's test it
-    #print conditionalEntropy(['1', '0', '1', '0', '1', '1'], ['a', 'a', 'b', 'b', 'b'])   
-    
-    
-#IG(Y|X) = H(Y) - H(Y|X)
-def informationGain(YasList, XasList):
-    return entropy(YasList) - conditionalEntropy(YasList, XasList)
-
-
-    #let's test it
-    #X = ['a', 'a', 'b', 'b', 'b', 'b']
-    #Y = ['0', '0', '1', '1', '1','0' ]
-    #print entropy(Y)
-    #print conditionalEntropy(Y, X)
-    #print informationGain(Y, X )   
-    
-def computeCorrelationUsingInfoGain(dataframe, targetName, featureName, missingValueLabel='missing'):
-    
-    #filter away rows with missing target of feature values
-    df = dataframe[(dataframe[targetName]!=missingValueLabel)&(dataframe[featureName]!=missingValueLabel)]
-    
-    target = df[targetName]
-    feature = df[featureName]
-    
-    #print entropy(target)
-    #print conditionalEntropy(target, feature)
-    #print informationGain(target, feature) 
-    
-    return informationGain(target, feature)
- 
-    #let's test it
-    #computeCorrelationUsingInfoGain(df, 'target', 'q58')    
-
-
 
 def getPrecisionDegradationFactors(metrics_worse, metrics_better, debug=False):
     ''' helper function to compare how much worse one set of metrics is than another '''
@@ -1485,7 +1143,6 @@ def injectLoss(inputDF, lossSpecifications, missingValue=999, mode='duplicate', 
 
         #### get which rows need to have this subset of columns reset
         rowsToReset = (np.random.rand(nRows) < instrPLoss)
-        #print 'rowsToReset: ', rowsToReset
 
         #### expand the list of columns that do need a reset for each row:
         resetDF['colsToReset'] = [list(curContent) + applyLossToTheseCols if doThisRow else list(curContent)\
@@ -1494,14 +1151,11 @@ def injectLoss(inputDF, lossSpecifications, missingValue=999, mode='duplicate', 
     #### Define the pandas operation that will do the reset
     def doResets(row):
         outRow = row
-        #print 'cols to reset: ', row['colsToReset']
         for key in row['colsToReset']:
-            #print 'missingValue: ', missingValue
             if type(missingValue) == str and missingValue == 'random':
                 randValToUse = int(5.*np.random.rand(1)[0])
                 outRow[key] = randValToUse
             else:
-                #print 'set outRow of ', key, ' to missing Value ', missingValue
                 outRow[key] = missingValue
         return outRow
 
@@ -1518,7 +1172,6 @@ def injectLoss(inputDF, lossSpecifications, missingValue=999, mode='duplicate', 
         appendDF = appendDF.apply(doResets, axis=1)
         appendDF['status'] = ['duplicate']*len(appendDF.index)
         outDF = resetDF.append([appendDF], ignore_index=True)
-    #print 'outDF: ', outDF
     return outDF
 
 def inject_proportional_loss_when_presence_encoding(inputDF, outcome_key='outcome', instructions=None, missing_value='missing', prior_autism_frac=None, module=None, validation=True):
@@ -1554,10 +1207,6 @@ def inject_proportional_loss_when_presence_encoding(inputDF, outcome_key='outcom
         if presence_means == 'autism':   ### inject into autism to make frac as large as not in non-presence category
             frac_injection = (n_not_no_presence -  n_autism_no_presence) / (n_autism_no_presence + n_autism_presence)
             #if autism_scaling_factor is not None:  ### correct values to ensure balancing is to correct priors
-            #    #print 'Fraction to inject with full accounting for weighting is ', frac_injection
-            #    #print 'Injection will be before weighting to desired prior of ', prior_autism_frac, ', so roll this out'
-            #    frac_injection /= autism_scaling_factor
-            #    #print 'Corrected for weightings, frac_injection is ', frac_injection
         elif presence_means == 'not':   ### inject into not to make frac as large as autism in non-presence category
             frac_injection = (n_autism_no_presence - n_not_no_presence) / (n_not_no_presence + n_not_presence)
         else:
@@ -1610,8 +1259,6 @@ def inject_proportional_loss_when_presence_encoding(inputDF, outcome_key='outcom
 
     feature_columns = [instruction['feature'] for instruction in instructions if instruction['feature'] in inputDF.columns]
     feature_encoding_map = {feature: 'presence_of_behavior' for feature in feature_columns}
-    #print 'feature_columns: ', feature_columns
-    #print 'feature_encoding_map: ', feature_encoding_map
 
     ### transform the data into presence encoded results
     encoded_df, _, _ = prepare_data_for_modeling(inputDF, feature_columns, feature_encoding_map, target_column=outcome_key)
@@ -1629,10 +1276,6 @@ def inject_proportional_loss_when_presence_encoding(inputDF, outcome_key='outcom
         n_not_tot = float(len(inputDF.index) - n_autism_tot)
         autism_prior_scaling_factor = prior_autism_frac * n_not_tot / (n_autism_tot * (1. - prior_autism_frac))
 
-        #print 'prior_autism_frac of ', prior_autism_frac, ' is desired.'
-        #print 'Initial n_autism: ', n_autism_tot, ', n_not: ', n_not_tot
-        #print 'Scaling factor is ', autism_prior_scaling_factor
-
     ### First determine what our loss instructions should be
     autism_loss_instructions = {'desc': 'autism_loss_instructions', 'instructions': []}
     not_loss_instructions = {'desc': 'not_loss_instructions', 'instructions': []}
@@ -1642,8 +1285,6 @@ def inject_proportional_loss_when_presence_encoding(inputDF, outcome_key='outcom
         if module is not None:
             if 'ados'+str(module) not in feature: continue
         if feature not in encoded_df.columns:
-#            print 'Warning, feature ', feature, ' not understood in dataframe columns: ', encoded_df.columns
-#            print 'Skip it'
             continue
         presence_means = instruct['presence_means']
         if presence_means == 'neutral': continue
@@ -1651,8 +1292,6 @@ def inject_proportional_loss_when_presence_encoding(inputDF, outcome_key='outcom
             ### May need to inject missing values into 'not' in order to achieve balance
             no_presence_df = encoded_df[encoded_df[feature]==0][[feature, outcome_key]]
             presence_df = encoded_df[encoded_df[feature]==1][[feature, outcome_key]]
-            #n_not = float(len(no_presence_df[no_presence_df[outcome_key]=='not'].index))
-            #n_autism = float(len(no_presence_df[no_presence_df[outcome_key]=='autism'].index))
             needed_frac_injection = get_frac_injection(no_presence_df, presence_df, outcome_key, presence_means, autism_prior_scaling_factor)
             if needed_frac_injection is None:
                 suspicious_features.append(feature)
@@ -1660,7 +1299,6 @@ def inject_proportional_loss_when_presence_encoding(inputDF, outcome_key='outcom
                 autism_loss_instructions['instructions'].append({'qType': feature, 'probability': needed_frac_injection})
                 if needed_frac_injection>0.5:
                     suspicious_features.append(feature)
-            #print 'for feature: ', feature, ', needed_frac_injection: ', needed_frac_injection
         elif presence_means == 'not':
             ### May need to inject missing values into 'autism' in order to achieve balance
             no_presence_df = encoded_df[encoded_df[feature]==0][[feature, outcome_key]]
@@ -1678,9 +1316,6 @@ def inject_proportional_loss_when_presence_encoding(inputDF, outcome_key='outcom
             return -1
 
     ### Now apply our loss instructions
-    #print 'Got loss instructions for autism and not DFs separately'
-    #print 'autism instructions: ', autism_loss_instructions
-    #print 'not instructions: ', not_loss_instructions
     autism_df = inputDF[inputDF[outcome_key]=='autism']
     not_df = inputDF[inputDF[outcome_key]=='not']
     if len(autism_loss_instructions['instructions']) > 0:   ## apply our loss instructions
@@ -1771,7 +1406,6 @@ def do_proportional_injection_sanity_checks(encoded_df, output_df, instructions,
     draw_sanity_overlays(autism_frac_dict, features, presence_means, suspicious_features, title='Autism frac results', ylabel='Autism fraction when feature not present', ylims=[0., 1.4], draw_comp_line=0.5)
 
 def draw_sanity_overlays(results_dict, feature_columns, presence_means, suspicious_features, title, ylabel, ylims, draw_comp_line=None):
-    import matplotlib.pyplot as plt
     plt.figure(figsize=(12,8))
     plt.grid(True)
     colors = ['red', 'blue', 'black', 'purple']
@@ -1781,7 +1415,6 @@ def draw_sanity_overlays(results_dict, feature_columns, presence_means, suspicio
     for (leg_label, yVals), color in zip(results_dict.iteritems(), colors):
         xWidths = 1. / (n_plots + 2.)
         these_xVals = np.arange(len(feature_columns))+(float(plot_num)*xWidths)
-        #print 'do xVals: ', these_xVals, ', yVals: ', yVals, ', color: ', color, ', leg_label: ', leg_label
         plt.bar(these_xVals, yVals, xWidths, color=color, label=leg_label)
         plot_num+=1
 
@@ -2098,8 +1731,3 @@ def get_desired_condition_fracs(app_frac_df, training_set_df, non_target_cols, u
         print 'assumed unknown composition: ', assumed_unknown_non_target_fracs[['age_category']+non_target_cols]
         print 'And the results are: ', desired_fracs_df[debug_cols+[unknown_non_target_col]]
     return desired_fracs_df
-
-
-
-    
-
