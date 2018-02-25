@@ -1,0 +1,10 @@
+
+* Additional things that can be worked on that were not addressed
+
+
+# Move bootstrapping into a seperate module, so this can apply to any dataset in the future(assuming I understand the intent of bootstrapping here)
+# Remove all print statements and replace with logging, that way logging levels can determine what is emitted, can be stored
+# Load/saving module into a seperate module
+# refactoring selection/inconclusive classifier modules, lots of closure functions. May be possible to seperate out into useful modules
+# pickling into a seperate module
+# make code more readable following pep8 standards

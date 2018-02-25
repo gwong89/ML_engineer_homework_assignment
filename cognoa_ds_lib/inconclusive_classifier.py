@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import random
-import ds_helper_functions
+from ML_engineer_homework_assignment.cognoa_ds_lib.helper_functions import ds_helper_functions
 
 
 def get_inconclusive_model(reliability_column, reliability_cutoff, dataset, feature_columns, feature_encoding_map, target_column, model_function, sample_weights,
@@ -32,9 +32,9 @@ def get_inconclusive_model(reliability_column, reliability_cutoff, dataset, feat
         
         print 'get reliability metrics'
         reliability_metrics = ds_helper_functions.get_classifier_performance_metrics(reliability_outcome_classes, reliability_outcome_class_priors,
-                                dataset[target_column], dataset['predicted_reliable'].values,
-                                reliability_y_predicted_with_dunno, reliability_y_predicted_probs
-                                                            )
+                                                                                     dataset[target_column], dataset['predicted_reliable'].values,
+                                                                                     reliability_y_predicted_with_dunno, reliability_y_predicted_probs
+                                                                                     )
         print 'reliability_metrics: ', reliability_metrics
         print 'formatted reliability metrics are: '
         ds_helper_functions.print_classifier_performance_metrics(reliability_outcome_classes, reliability_metrics)
@@ -65,7 +65,6 @@ def run_inconclusive_model(model_reliability_structure, model_reliable_only_stru
 def run_XValidation_many_times_and_find_agreeing_points(n_expts, dataset, sample_weights, feature_columns, feature_encoding_map, outcome_column, dunno_range, 
         n_folds, outcome_classes, outcome_class_priors, model_function, model_parameters, verbose=False):
     ''' Run n_expts X-validations and do a majority vote of which points end up being in agreement '''
-    #verbose = True
     n_matching_arr = None
     for iexpt in range(n_expts):
         if verbose:
@@ -75,7 +74,7 @@ def run_XValidation_many_times_and_find_agreeing_points(n_expts, dataset, sample
             for this_class in outcome_classes:
                 print 'class: ', this_class, ', n children: ', len(dataset[dataset[outcome_column]==this_class].index)
         output = ds_helper_functions.cross_validate_model(dataset, sample_weights, feature_columns, feature_encoding_map, outcome_column, dunno_range,
-                       n_folds, outcome_classes, outcome_class_priors, cp.deepcopy(model_function), **model_parameters)
+                                                          n_folds, outcome_classes, outcome_class_priors, cp.deepcopy(model_function), **model_parameters)
         if verbose:
             print 'Finished XValidate model'
         XValid_good = dataset.index.isin(output['correctly_predicted_sample_indices']).astype(int)
@@ -142,13 +141,6 @@ def run_inconclusive_model_pseudo_experiments(n_expts, n_XValid_expts, frac_hold
               outcome_class_priors=outcome_class_priors, model_function=cp.deepcopy(base_model), model_parameters=base_model_args_dict,
               verbose=False)
 
-#        reliability_output = cross_validate_model(reliability_df, reliability_sample_weights,
-#              feature_columns, feature_encoding_map, outcome_column, dunno_range, n_folds,
-#              outcome_classes, outcome_class_priors, cp.deepcopy(base_model),  **base_model_args_dict)
-#        
-#        reliability_df['XValid_matches'] = reliability_df.index.isin(reliability_output['correctly_predicted_sample_indices'])
-#        reliability_df['XValid_matches'] = ['reliable' if ele == True else 'not' for ele in reliability_df['XValid_matches'].values]
-
         print 'On experiment, ', iexpt, ', get reliability model'
         reliability_model, reliable_dataset, encoded_reliability_features = get_inconclusive_model(reliability_column='XValid_matches',
                 reliability_cutoff=reliability_cutoff, dataset=reliability_df, feature_columns=feature_columns,
@@ -173,13 +165,13 @@ def run_inconclusive_model_pseudo_experiments(n_expts, n_XValid_expts, frac_hold
         
         ### old way of doing things:
         validation_output = ds_helper_functions.cross_validate_model(validation_df, validation_sample_weights, feature_columns,
-                                feature_encoding_map, outcome_column, dunno_range, n_folds, outcome_classes,
-                                outcome_class_priors, cp.deepcopy(base_model),  **base_model_args_dict)
+                                                                     feature_encoding_map, outcome_column, dunno_range, n_folds, outcome_classes,
+                                                                     outcome_class_priors, cp.deepcopy(base_model), **base_model_args_dict)
         ### restrict to only the good stuff:
         #X_validate,y_validate,encoded_features_validate = ds_helper_functions.prepare_data_for_modeling_and_match_features(validation_df,
         #                            feature_columns, feature_encoding_map, 'outcome', encoded_reliability_features)
         X_validate,y_validate,encoded_features_validate = ds_helper_functions.prepare_data_for_modeling(validation_df,
-                                    feature_columns, feature_encoding_map, 'outcome', force_encoded_features=encoded_reliability_features)
+                                                                                                        feature_columns, feature_encoding_map, 'outcome', force_encoded_features=encoded_reliability_features)
     
     
         validation_df['reliability_prob'] = [ele[1] for ele in reliability_model.predict_proba(X_validate)]
@@ -187,9 +179,9 @@ def run_inconclusive_model_pseudo_experiments(n_expts, n_XValid_expts, frac_hold
     
         restricted_validation_df = validation_df[validation_df['reliability_prediction']=='reliable']
         restricted_validation_sample_weights = validation_sample_weights[validation_sample_weights.index.isin(restricted_validation_df.index)]
-        restricted_validation_output = ds_helper_functions.cross_validate_model(restricted_validation_df, restricted_validation_sample_weights, 
-                                feature_columns, feature_encoding_map, outcome_column, None, n_folds,
-                                outcome_classes, outcome_class_priors, cp.deepcopy(base_model), **base_model_args_dict)
+        restricted_validation_output = ds_helper_functions.cross_validate_model(restricted_validation_df, restricted_validation_sample_weights,
+                                                                                feature_columns, feature_encoding_map, outcome_column, None, n_folds,
+                                                                                outcome_classes, outcome_class_priors, cp.deepcopy(base_model), **base_model_args_dict)
     
         if verbose:
             print 'For expt ', iexpt, ', X-validation performance with no reliability restriction is:'
@@ -223,9 +215,6 @@ def run_inconclusive_model_pseudo_experiments(n_expts, n_XValid_expts, frac_hold
             results_dict['default_'+outcome_class+'_recall'] = validation_output['overall_metrics']['without_dunno']['dataset_recall_per_class'][outcome_class]
             results_dict['chained_'+outcome_class+'_recall'] = restricted_validation_output['overall_metrics']['without_dunno']['dataset_recall_per_class'][outcome_class]
             results_dict['dunno_'+outcome_class+'_recall'] = validation_output['overall_metrics']['with_dunno']['dataset_recall_per_class'][outcome_class]
-#            results_dict['default_not_recall'] = validation_output['overall_metrics']['without_dunno']['dataset_recall_per_class']['not']
-#            results_dict['dunno_not_recall'] = validation_output['overall_metrics']['with_dunno']['dataset_recall_per_class']['not']
-#            results_dict['chained_not_recall'] = restricted_validation_output['overall_metrics']['without_dunno']['dataset_recall_per_class']['not']
         experiment_results.append(results_dict)
     experiment_results_df = pd.DataFrame(experiment_results)
     return experiment_results_df

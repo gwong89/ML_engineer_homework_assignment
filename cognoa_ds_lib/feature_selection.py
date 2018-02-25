@@ -7,12 +7,9 @@
 ### The tally list has been added
 
 
-import math, random
-import copy as cp
 import pandas as pd
-import matplotlib.pyplot as plt
-import numpy as np
-from ds_helper_functions import *
+from ML_engineer_homework_assignment.cognoa_ds_lib.helper_functions.ds_helper_functions import *
+from ML_engineer_homework_assignment.cognoa_ds_lib.helper_functions.utils import subsample_per_class
 from sklearn.ensemble import RandomForestClassifier
 
 ##### Functions for studying new features when adding to triton dataset
